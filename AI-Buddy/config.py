@@ -1,0 +1,4 @@
+WAKE_WORD = "hello"
+MIC_INDEX = 0
+VOICE_INDEX = 1
+ASSISTANT_NAME = "AIBuddy"
