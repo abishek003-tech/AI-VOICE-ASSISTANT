@@ -144,7 +144,7 @@ def handle_command(text: str) -> Tuple[bool, str]:
 
     # 9. Cultural / Personality Easter Eggs
     elif parsed.intent_type == IntentType.WHO_IS_GOD:
-        msg = "Ajitheyyy Kadavuleyy."
+        msg = "Ajitheyyy Kadavuleyy"
         speak(msg)
         return False, msg
 
