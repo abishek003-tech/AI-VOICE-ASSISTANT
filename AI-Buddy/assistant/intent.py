@@ -8,6 +8,7 @@ class IntentType(Enum):
     APP_CLOSE = auto()
     MEDIA_OPEN = auto()
     MEDIA_PLAY = auto()
+    CALCULATION = auto()
     TIME = auto()
     JOKE = auto()
     WIKIPEDIA = auto()
