@@ -134,9 +134,19 @@ class TestCalculator(unittest.TestCase):
 
 class TestAppControl(unittest.TestCase):
     def test_resolve_app_key(self):
-        self.assertEqual(resolve_app_key("google chrome"), "chrome")
+        # Exact key lookups (newly promoted aliases are first-class keys)
+        self.assertIsNotNone(resolve_app_key("chrome"))
+        self.assertIsNotNone(resolve_app_key("google chrome"))
         self.assertEqual(resolve_app_key("notepad"), "notepad")
         self.assertEqual(resolve_app_key("calculator"), "calculator")
+        # Newly added apps should resolve
+        self.assertIsNotNone(resolve_app_key("spotify"))
+        self.assertIsNotNone(resolve_app_key("vlc"))
+        self.assertIsNotNone(resolve_app_key("word"))
+        self.assertIsNotNone(resolve_app_key("powerpoint"))
+        self.assertIsNotNone(resolve_app_key("task manager"))
+        self.assertIsNotNone(resolve_app_key("snipping tool"))
+        # Unknown apps must return None
         self.assertIsNone(resolve_app_key("unknown_game_123"))
 
     def test_unsupported_app_launch(self):
