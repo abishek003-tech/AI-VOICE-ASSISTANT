@@ -3,21 +3,15 @@ import pyttsx3
 import os
 import datetime
 import subprocess
-import sys
 import pywhatkit 
 
 engine = pyttsx3.init()
 voices = engine.getProperty('voices')
-engine.setProperty('voice', voices[1].id)
+if voices:
+    engine.setProperty('voice', voices[1 if len(voices) > 1 else 0].id)
 recognizer  = sr.Recognizer() 
 
-# List available microphones
-print("Available microphones:")
-for index, name in enumerate(sr.Microphone.list_microphone_names()):
-    print(f"{index}: {name}")
-
-# You can change the device_index if needed
-mic = sr.Microphone(device_index=0)  # Default is 0, change if necessary
+mic = sr.Microphone()
 
 def speak(text):
     engine.say(text)
@@ -69,38 +63,49 @@ def close_software(software_name):
 
 def listen_for_wake_word():
     with mic as source:
+        recognizer.adjust_for_ambient_noise(source, duration=0.8)
         print('Listening for wake word...')
         while True:
-            recognizer.adjust_for_ambient_noise(source, duration=0.5)
-            recorded_audio = recognizer.listen(source)
+            try:
+                recorded_audio = recognizer.listen(
+                    source, timeout=5, phrase_time_limit=5
+                )
+            except sr.WaitTimeoutError:
+                continue
+
             try:
                 text = recognizer.recognize_google(recorded_audio, language='en_US')
                 text = text.lower()
-                if 'nanba' in text:
+                if 'hello' in text:
                     print('Wake word detected!')
                     speak('Hi Sir, How can I help you?')
                     return True
-            except Exception as ex:
-                print("Could not understand audio, please try again.")
+            except sr.UnknownValueError:
+                print("Didn't catch that; still listening for 'hello'.")
 
 def cmd():
     with mic as source:
-        print('Clearing background noise... please wait!')
         recognizer.adjust_for_ambient_noise(source, duration=0.5)
         print('Ask me anything...')
-        recorded_audio = recognizer.listen(source)
+        try:
+            recorded_audio = recognizer.listen(
+                source, timeout=5, phrase_time_limit=8
+            )
+        except sr.WaitTimeoutError:
+            print('No speech detected. Say "hello" to try again.')
+            return False
 
     try:
         text = recognizer.recognize_google(recorded_audio, language='en_US')
         text = text.lower()
         print('Your message:', text)
-    except Exception as ex:
-        print(ex)
-        return
+    except sr.UnknownValueError:
+        print("Could not understand the audio. Say 'hello' to try again.")
+        return False
 
     if 'stop' in text:
         speak('Stopping the program. Goodbye!')
-        sys.exit()
+        return True
     if 'open' in text:
         software_name = text.replace('open', '').strip()
         open_software(software_name)
@@ -115,9 +120,24 @@ def cmd():
         speak('Ajitheyyy Kadavuleyy')
     elif 'what is your name' in text:
         speak('My name is Jarvis Your Artificial Intelligence')
+    else:
+        speak("I didn't understand that command.")
 
-while True:
-    if listen_for_wake_word():
-        while True: 
-            if cmd():
-                break
+    return False
+
+
+def main():
+    while True:
+        listen_for_wake_word()
+        if cmd():
+            break
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except sr.RequestError as ex:
+        print(f"Google speech recognition request failed: {ex}")
+        print("Check your internet connection and try again.")
+    except OSError as ex:
+        print(f"Could not access the microphone or audio device: {ex}")
