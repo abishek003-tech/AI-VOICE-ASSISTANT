@@ -64,9 +64,9 @@ def play_youtube(query: str) -> ActionResult:
             search_url = f"https://www.youtube.com/results?search_query={encoded}"
             webbrowser.open(search_url)
             if config.RESPONSE_MODE == "tanglish":
-                msg = f"Ippo {clean_query} play panren."
+                msg = f"YouTube search open panniten, aana playback confirm panna mudiyala."
             else:
-                msg = f"Playing {clean_query} now."
+                msg = f"I opened YouTube search for {clean_query}, but I couldn't confirm playback."
             return ActionResult(success=True, message=msg, detail=f"Fallback search URL opened: {search_url}")
         except Exception as browser_err:
             logger.error(f"Failed to open YouTube search URL: {browser_err}")
