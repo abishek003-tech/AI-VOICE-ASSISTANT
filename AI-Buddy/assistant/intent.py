@@ -73,7 +73,15 @@ def parse_intent(text: str) -> ParsedIntent:
     if clean in ["open youtube", "launch youtube", "youtube"]:
         return ParsedIntent(IntentType.MEDIA_OPEN, raw_text=raw)
 
-    # 7. Application Launching
+    # 7. Calculations and mathematical questions
+    if ("square root" in clean or "sqrt" in clean or 
+        clean.startswith("calculate") or clean.startswith("solve") or
+        re.search(r"\b(plus|minus|times|multiplied by|divided by|into)\b", clean)):
+        # Ensure this is not an explicit app launch/close command like "open calculator"
+        if not re.search(r"\b(open|launch|start|run|close|terminate|kill|shut down)\s+(calculator|calc)\b", clean):
+            return ParsedIntent(IntentType.CALCULATION, entity=raw, raw_text=raw)
+
+    # 8. Application Launching
     # Matches: "open chrome", "can you launch notepad", "please start calculator", "run vs code"
     open_match = re.search(r"\b(open|launch|start|run)\s+(.+)", clean)
     if open_match:
