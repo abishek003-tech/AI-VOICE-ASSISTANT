@@ -196,19 +196,33 @@ class TestCommands(unittest.TestCase):
     @patch("assistant.commands.launch_application")
     def test_handle_command_open_chrome(self, mock_launch, mock_speak):
         from assistant.commands import handle_command
-        mock_launch.return_value = ActionResult(success=True, message="Google Chrome is now open.")
+        mock_launch.return_value = ActionResult(success=True, message="Google Chrome is open.")
         should_exit, msg = handle_command("open chrome")
         self.assertFalse(should_exit)
         mock_launch.assert_called_once_with("chrome")
+        # Confirms two-phase spoken status: (1) status update, (2) verified outcome
+        self.assertEqual(mock_speak.call_count, 2)
 
     @patch("assistant.commands.speak")
     @patch("assistant.commands.play_youtube")
     def test_handle_command_play_youtube(self, mock_play, mock_speak):
         from assistant.commands import handle_command
-        mock_play.return_value = ActionResult(success=True, message="Playing Kalyani song on YouTube.")
+        mock_play.return_value = ActionResult(success=True, message="Playing Kalyani song now.")
         should_exit, msg = handle_command("Play Kalyani song")
         self.assertFalse(should_exit)
         mock_play.assert_called_once_with("kalyani song")
+        # Confirms two-phase spoken status: (1) status update, (2) verified playback
+        self.assertEqual(mock_speak.call_count, 2)
+
+    @patch("assistant.commands.speak")
+    @patch("assistant.commands.get_joke", return_value="Why did the chicken cross the road?")
+    def test_handle_command_joke_spoken_intro_and_punchline(self, mock_get_joke, mock_speak):
+        from assistant.commands import handle_command
+        should_exit, joke = handle_command("tell me a joke")
+        self.assertFalse(should_exit)
+        # Confirms two spoken utterances: intro ("Here's a joke...") then the full joke aloud
+        self.assertEqual(mock_speak.call_count, 2)
+        mock_speak.assert_any_call("Why did the chicken cross the road?")
 
     @patch("assistant.commands.speak")
     def test_handle_command_empty_input(self, mock_speak):
