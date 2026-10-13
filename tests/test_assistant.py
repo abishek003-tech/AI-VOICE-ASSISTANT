@@ -15,6 +15,7 @@ from assistant.intent import IntentType, parse_intent
 from assistant.actions import ActionResult
 from assistant.app_control import resolve_app_key, launch_application, close_application
 from assistant.media import play_youtube, open_youtube
+from assistant.calculator import solve_math_expression
 import assistant.ai_brain as ai_brain
 
 class TestIntentParser(unittest.TestCase):
@@ -22,6 +23,7 @@ class TestIntentParser(unittest.TestCase):
         cases = [
             ("Play Kalyani song", IntentType.MEDIA_PLAY, "kalyani song"),
             ("play kalyani song", IntentType.MEDIA_PLAY, "kalyani song"),
+            ("Play Ilaiyaraaja song", IntentType.MEDIA_PLAY, "ilaiyaraaja song"),
             ("open youtube and play kalyani song", IntentType.MEDIA_PLAY, "kalyani song"),
             ("search youtube for kalyani songs", IntentType.MEDIA_PLAY, "kalyani songs"),
             ("play a tamil melody", IntentType.MEDIA_PLAY, "a tamil melody"),
@@ -39,6 +41,20 @@ class TestIntentParser(unittest.TestCase):
             with self.subTest(text=text):
                 parsed = parse_intent(text)
                 self.assertEqual(parsed.intent_type, IntentType.MEDIA_OPEN)
+
+    def test_math_calculation_intents(self):
+        cases = [
+            "Calculator, 2 plus 3. What is the answer?",
+            "What is 12 times 8?",
+            "Calculate 100 divided by 4.",
+            "What is the square root of 81?",
+            "calculate 50 minus 20",
+            "solve 2 to the power of 3",
+        ]
+        for text in cases:
+            with self.subTest(text=text):
+                parsed = parse_intent(text)
+                self.assertEqual(parsed.intent_type, IntentType.CALCULATION)
 
     def test_app_open_variations(self):
         cases = [
@@ -84,6 +100,38 @@ class TestIntentParser(unittest.TestCase):
         self.assertEqual(parsed.intent_type, IntentType.GENERAL_AI)
 
 
+class TestCalculator(unittest.TestCase):
+    def test_basic_addition(self):
+        res = solve_math_expression("Calculator, 2 plus 3. What is the answer?")
+        self.assertTrue(res.success)
+        self.assertIn("equals 5", res.message)
+
+    def test_multiplication(self):
+        res = solve_math_expression("What is 12 times 8?")
+        self.assertTrue(res.success)
+        self.assertIn("equals 96", res.message)
+
+    def test_division(self):
+        res = solve_math_expression("Calculate 100 divided by 4.")
+        self.assertTrue(res.success)
+        self.assertIn("equals 25", res.message)
+
+    def test_square_root(self):
+        res = solve_math_expression("What is the square root of 81?")
+        self.assertTrue(res.success)
+        self.assertIn("square root of 81 is 9", res.message)
+
+    def test_division_by_zero(self):
+        res = solve_math_expression("10 divided by 0")
+        self.assertFalse(res.success)
+        self.assertIn("Division by zero", res.message)
+
+    def test_invalid_math_expression(self):
+        res = solve_math_expression("calculate random gibberish")
+        self.assertFalse(res.success)
+        self.assertIn("couldn't understand", res.message)
+
+
 class TestAppControl(unittest.TestCase):
     def test_resolve_app_key(self):
         self.assertEqual(resolve_app_key("google chrome"), "chrome")
@@ -109,7 +157,6 @@ class TestAppControl(unittest.TestCase):
 
     @patch("psutil.process_iter")
     def test_calculator_close_mapping(self, mock_process_iter):
-        # Verify process names checked for calculator include CalculatorApp.exe and calc.exe
         proc_names_in_reg = config.APP_REGISTRY["calculator"]["process_names"]
         self.assertIn("CalculatorApp.exe", proc_names_in_reg)
         self.assertIn("calc.exe", proc_names_in_reg)
@@ -133,6 +180,13 @@ class TestMediaControl(unittest.TestCase):
         res = play_youtube("Kalyani song")
         self.assertTrue(res.success)
         mock_playonyt.assert_called_once_with("Kalyani song")
+
+    @patch("webbrowser.open")
+    def test_play_youtube_fallback_truthful(self, mock_browser):
+        with patch("pywhatkit.playonyt", side_effect=Exception("Driver missing")):
+            res = play_youtube("Ilaiyaraaja song")
+            self.assertTrue(res.success)
+            self.assertTrue("couldn't confirm playback" in res.message or "playback confirm panna mudiyala" in res.message)
 
 
 class TestAIBrain(unittest.TestCase):
@@ -179,6 +233,14 @@ class TestCommands(unittest.TestCase):
         self.assertTrue("time" in msg.lower() or ":" in msg)
 
     @patch("assistant.commands.speak")
+    def test_handle_command_calculation(self, mock_speak):
+        from assistant.commands import handle_command
+        should_exit, msg = handle_command("Calculator, 2 plus 3. What is the answer?")
+        self.assertFalse(should_exit)
+        self.assertIn("equals 5", msg)
+        mock_speak.assert_called_once()
+
+    @patch("assistant.commands.speak")
     def test_handle_command_god_persona(self, mock_speak):
         from assistant.commands import handle_command
         should_exit, msg = handle_command("who is god")
@@ -204,14 +266,25 @@ class TestCommands(unittest.TestCase):
         self.assertEqual(mock_speak.call_count, 2)
 
     @patch("assistant.commands.speak")
-    @patch("assistant.commands.play_youtube")
-    def test_handle_command_play_youtube(self, mock_play, mock_speak):
+    @patch("assistant.commands.close_application")
+    def test_handle_command_close_chrome(self, mock_close, mock_speak):
         from assistant.commands import handle_command
-        mock_play.return_value = ActionResult(success=True, message="Playing Kalyani song now.")
-        should_exit, msg = handle_command("Play Kalyani song")
+        mock_close.return_value = ActionResult(success=True, message="Google Chrome is closed.")
+        should_exit, msg = handle_command("close chrome")
         self.assertFalse(should_exit)
-        mock_play.assert_called_once_with("kalyani song")
-        # Confirms two-phase spoken status: (1) status update, (2) verified playback
+        mock_close.assert_called_once_with("chrome")
+        # Confirms two-phase spoken status: (1) closing status, (2) verified closure
+        self.assertEqual(mock_speak.call_count, 2)
+
+    @patch("assistant.commands.speak")
+    @patch("assistant.commands.play_youtube")
+    def test_handle_command_play_youtube_dynamic_artist(self, mock_play, mock_speak):
+        from assistant.commands import handle_command
+        mock_play.return_value = ActionResult(success=True, message="Playing Ilaiyaraaja song now.")
+        should_exit, msg = handle_command("Play Ilaiyaraaja song")
+        self.assertFalse(should_exit)
+        mock_play.assert_called_once_with("Ilaiyaraaja song")
+        # Confirms dynamic spoken status with exact artist name
         self.assertEqual(mock_speak.call_count, 2)
 
     @patch("assistant.commands.speak")
@@ -220,9 +293,17 @@ class TestCommands(unittest.TestCase):
         from assistant.commands import handle_command
         should_exit, joke = handle_command("tell me a joke")
         self.assertFalse(should_exit)
-        # Confirms two spoken utterances: intro ("Here's a joke...") then the full joke aloud
         self.assertEqual(mock_speak.call_count, 2)
         mock_speak.assert_any_call("Why did the chicken cross the road?")
+
+    @patch("assistant.commands.speak")
+    @patch("assistant.commands.search_wikipedia", return_value="Python is a programming language.")
+    def test_handle_command_wikipedia_spoken_readout(self, mock_wiki, mock_speak):
+        from assistant.commands import handle_command
+        should_exit, wiki_ans = handle_command("search wikipedia for Python")
+        self.assertFalse(should_exit)
+        self.assertEqual(mock_speak.call_count, 2)
+        mock_speak.assert_any_call("Python is a programming language.")
 
     @patch("assistant.commands.speak")
     def test_handle_command_empty_input(self, mock_speak):

@@ -47,27 +47,32 @@ def parse_intent(text: str) -> ParsedIntent:
 
     # 5. Wikipedia queries
     if "wikipedia" in clean:
-        query = clean.replace("wikipedia", "").replace("search", "").replace("for", "").strip()
+        match = re.search(r"(?:search\s+wikipedia\s+(?:for\s+)?|wikipedia\s+(?:for\s+)?)(.*)", clean)
+        start_idx = match.start(1) if match else clean.find("wikipedia") + 9
+        query = raw[start_idx:].strip()
         return ParsedIntent(IntentType.WIKIPEDIA, entity=query, raw_text=raw)
 
     # 6. YouTube & Media commands (Check before generic 'open' commands)
     # Check "open youtube and play <song>" or "search youtube for <song>" or "play <song> on youtube"
     if "youtube and play" in clean:
-        query = clean.split("youtube and play")[-1].strip()
-        query = re.sub(r"\s+(on|in)\s+youtube$", "", query).strip()
+        match = re.search(r"youtube\s+and\s+play\s+(.*)", clean)
+        start_idx = match.start(1) if match else clean.find("youtube and play") + 16
+        query = raw[start_idx:].strip()
+        query = re.sub(r"\s+(on|in)\s+youtube$", "", query, flags=re.IGNORECASE).strip()
         return ParsedIntent(IntentType.MEDIA_PLAY, entity=query, raw_text=raw)
 
     if clean.startswith("play ") or " play " in clean:
-        # Extract query after 'play'
         match = re.search(r"\bplay\s+(.*)", clean)
-        query = match.group(1).strip() if match else ""
-        query = re.sub(r"\s+(on|in)\s+youtube$", "", query).strip()
+        start_idx = match.start(1) if match else 5
+        query = raw[start_idx:].strip()
+        query = re.sub(r"\s+(on|in)\s+youtube$", "", query, flags=re.IGNORECASE).strip()
         return ParsedIntent(IntentType.MEDIA_PLAY, entity=query, raw_text=raw)
 
     if "on youtube" in clean or clean.startswith("search youtube"):
-        # e.g., "search youtube for kalyani songs" or "kalyani songs on youtube"
-        query = clean.replace("search youtube for", "").replace("search youtube", "").replace("on youtube", "").strip()
-        query = re.sub(r"\s+(on|in)\s+youtube$", "", query).strip()
+        match = re.search(r"(?:search\s+youtube\s+(?:for\s+)?)(.*)", clean)
+        start_idx = match.start(1) if match else 0
+        query = raw[start_idx:].strip() if start_idx else clean.replace("search youtube for", "").replace("search youtube", "").replace("on youtube", "").strip()
+        query = re.sub(r"\s+(on|in)\s+youtube$", "", query, flags=re.IGNORECASE).strip()
         return ParsedIntent(IntentType.MEDIA_PLAY, entity=query, raw_text=raw)
 
     if clean in ["open youtube", "launch youtube", "youtube"]:
